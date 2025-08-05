@@ -1,0 +1,776 @@
+import lo from "lodash";
+import {
+    BigNumberish,
+    Liquidity,
+    LIQUIDITY_STATE_LAYOUT_V4,
+    LiquidityPoolKeys,
+    LiquidityPoolKeysV4,
+    LiquidityStateV4,
+    MARKET_STATE_LAYOUT_V3,
+    MarketStateV3,
+    Percent,
+    simulateTransaction,
+    Token,
+    TokenAmount,
+} from '@raydium-io/raydium-sdk'
+import {
+    AccountLayout,
+    createAssociatedTokenAccountIdempotentInstruction,
+    createAssociatedTokenAccountInstruction,
+    createCloseAccountInstruction,
+    createSyncNativeInstruction,
+    getAssociatedTokenAddress,
+    NATIVE_MINT,
+    TOKEN_PROGRAM_ID,
+} from '@solana/spl-token'
+import {
+    Keypair,
+    Connection,
+    PublicKey,
+    ComputeBudgetProgram,
+    KeyedAccountInfo,
+    TransactionMessage,
+    VersionedTransaction,
+    Transaction,
+    TransactionInstruction,
+    SystemProgram,
+    ParsedTransaction,
+    ParsedTransactionWithMeta,
+    LAMPORTS_PER_SOL,
+} from '@solana/web3.js'
+import { getTokenAccounts, RAYDIUM_LIQUIDITY_PROGRAM_ID_V4, OPENBOOK_PROGRAM_ID, createPoolKeys } from '../../utils'
+import { logger } from '../../utils'
+import { getMinimalMarketV3, MinimalMarketLayoutV3 } from '../../utils'
+import { MintLayout, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import bs58 from 'bs58'
+import * as fs from 'fs'
+import * as path from 'path'
+import readline from 'readline'
+import { BN } from 'bn.js'
+import {
+    CHECK_IF_MINT_IS_RENOUNCED,
+    LOG_LEVEL,
+    MAX_SELL_RETRIES,
+    QUOTE_MINT,
+    SNIPE_LIST_REFRESH_INTERVAL,
+    PRICE_CHECK_DURATION,
+    PRICE_CHECK_INTERVAL,
+    TAKE_PROFIT1,
+    TAKE_PROFIT2,
+    SELL_SLIPPAGE,
+    CHECK_IF_MINT_IS_MUTABLE,
+    CHECK_IF_MINT_IS_BURNED,
+    Raydium,
+    WSOL,
+} from '../../config'
+// import { monitor } from './monitor'
+// import { checkBurn, checkMutable } from './tokenFilter'
+// import { bundle } from './executor/jito'
+// import { execute } from './executor/legacy'
+import { solanaConnection } from '../../config'
+import { checkBurn, checkMutable } from './temp/tokenFilter'
+import { bundle } from './temp/executor/jito'
+import { execute } from './temp/executor/legacy'
+import { Server } from 'socket.io';
+import { buyStatus, saveNewPool, sellStatus } from '../../controller';
+import { pools } from '../../sockets';
+import { LOG_TYPE, RAY_IX_TYPE } from '../../utils/types';
+import { Commitment } from '@solana/web3.js';
+
+export interface MinimalTokenAccountData {
+    mint: PublicKey
+    address: PublicKey
+    poolKeys?: LiquidityPoolKeys
+    market?: MinimalMarketLayoutV3
+}
+
+const existingLiquidityPools: Set<string> = new Set<string>()
+const existingOpenBookMarkets: Set<string> = new Set<string>()
+export const existingTokenAccounts: Map<string, MinimalTokenAccountData> = new Map<string, MinimalTokenAccountData>()
+
+let wallet: Keypair
+let quoteToken: Token
+let quoteTokenAssociatedAddress: PublicKey
+let quoteAmount: TokenAmount
+let quoteMinPoolSizeAmount: TokenAmount
+let quoteMaxPoolSizeAmount: TokenAmount
+let processingToken: Boolean = false
+let running: Boolean = false
+let flag: Boolean = false;
+let autoBuy: boolean = false
+let minSize: number = 0
+let maxSize: number = 0
+let autoSell: boolean = false
+let profit: number = 0
+let sellDelay: number = 0
+let solAmount: number = 0
+let buygas: number = 0
+let sellgas: number = 0
+let onceBuy: boolean = false
+let monitoring: boolean = false
+let jitoMode: boolean = false
+let stop: number = 0
+let snipeList: string[] = []
+let mint: PublicKey
+let poolId: PublicKey
+
+const waitFor = (delay: number): Promise<void> => {
+    return new Promise(resolve => setTimeout(resolve, delay));
+};
+
+async function init(): Promise<void> {
+    logger.info('initialize')
+    logger.level = LOG_LEVEL
+    const data = JSON.parse(fs.readFileSync("data.json", `utf8`))
+
+    // get wallet
+    const PRIVATE_KEY = data.privKey
+    wallet = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+    logger.info(`Wallet Address: ${wallet.publicKey}`)
+    if (!autoBuy && data.autoBuy) processingToken = false
+    autoBuy = data.autoBuy
+    autoSell = data.autoSell
+    profit = data.profit
+    sellDelay = data.delay
+    minSize = data.minSize
+    maxSize = data.maxSize
+    solAmount = data.amount
+    buygas = data.buyGas
+    sellgas = data.sellGas
+    flag = data.flag
+    running = data.running
+    onceBuy = data.onceBuy
+    monitoring = data.monitoring
+    jitoMode = data.jitoMode
+    stop = data.stop
+
+    // get quote mint and amount
+    switch (QUOTE_MINT) {
+        case 'WSOL': {
+            quoteToken = Token.WSOL
+            quoteAmount = new TokenAmount(Token.WSOL, solAmount, false)
+            quoteMinPoolSizeAmount = new TokenAmount(quoteToken, minSize, false)
+            quoteMaxPoolSizeAmount = new TokenAmount(quoteToken, maxSize, false)
+            break
+        }
+        case 'USDC': {
+            quoteToken = new Token(
+                TOKEN_PROGRAM_ID,
+                new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
+                6,
+                'USDC',
+                'USDC',
+            )
+            quoteAmount = new TokenAmount(quoteToken, solAmount, false)
+            quoteMinPoolSizeAmount = new TokenAmount(quoteToken, minSize, false)
+            quoteMaxPoolSizeAmount = new TokenAmount(quoteToken, maxSize, false)
+            break
+        }
+        default: {
+            throw new Error(`Unsupported quote mint "${QUOTE_MINT}". Supported values are USDC and WSOL`)
+        }
+    }
+
+    // check existing wallet for associated token account of quote mint
+    const tokenAccounts = await getTokenAccounts(solanaConnection, wallet.publicKey, 'confirmed')
+
+    for (const ta of tokenAccounts) {
+        existingTokenAccounts.set(ta.accountInfo.mint.toString(), <MinimalTokenAccountData>{
+            mint: ta.accountInfo.mint,
+            address: ta.pubkey,
+        })
+    }
+
+    quoteTokenAssociatedAddress = getAssociatedTokenAddressSync(NATIVE_MINT, wallet.publicKey)
+    const wsolBalance = await solanaConnection.getBalance(quoteTokenAssociatedAddress)
+    console.log("🚀 ~ init ~ wsolBalance:", wsolBalance)
+    // if (!(!wsolBalance || wsolBalance == 0))
+    // unwrapSol(quoteTokenAssociatedAddress)
+
+}
+
+export function saveTokenAccount(mint: PublicKey, accountData: MinimalMarketLayoutV3) {
+    const ata = getAssociatedTokenAddressSync(mint, wallet.publicKey)
+    const tokenAccount = <MinimalTokenAccountData>{
+        address: ata,
+        mint: mint,
+        market: <MinimalMarketLayoutV3>{
+            bids: accountData.bids,
+            asks: accountData.asks,
+            eventQueue: accountData.eventQueue,
+        },
+    }
+    existingTokenAccounts.set(mint.toString(), tokenAccount)
+    return tokenAccount
+}
+
+export async function processRaydiumPool(id: PublicKey, poolState: LiquidityStateV4, poolSize: TokenAmount, mint: PublicKey) {
+    logger.info('process ')
+    if (!quoteMinPoolSizeAmount.isZero()) {
+        logger.info(`Processing pool: ${id.toString()} with ${poolSize.toFixed()} ${quoteToken.symbol} in liquidity`)
+
+        if (poolSize.lt(quoteMinPoolSizeAmount)) {
+            // logger.warn(
+            //     {
+            //         mint: poolState.baseMint,
+            //         pooled: `${poolSize.toFixed()} ${quoteToken.symbol}`,
+            //     },
+            //     `Skipping pool, smaller than ${quoteMinPoolSizeAmount.toFixed()} ${quoteToken.symbol}`,
+            //     `Swap quote in amount: ${poolSize.toFixed()}`,
+            // )
+            // logger.info(`-------------------------------------- \n`)
+            return
+        }
+    }
+
+    if (!quoteMaxPoolSizeAmount.isZero()) {
+        const poolSize = new TokenAmount(quoteToken, poolState.swapQuoteInAmount, true)
+
+        if (poolSize.gt(quoteMaxPoolSizeAmount)) {
+            // logger.warn(
+            //     {
+            //         mint: poolState.baseMint,
+            //         pooled: `${poolSize.toFixed()} ${quoteToken.symbol}`,
+            //     },
+            //     `Skipping pool, bigger than ${quoteMaxPoolSizeAmount.toFixed()} ${quoteToken.symbol}`,
+            //     `Swap quote in amount: ${poolSize.toFixed()}`,
+            // )
+            // logger.info(`-------------------------------------- \n`)
+            return
+        }
+    }
+
+    // if (CHECK_IF_MINT_IS_RENOUNCED) {
+    //     const mintOption = await checkMintable(poolState.baseMint)
+
+    //     if (mintOption !== true) {
+    //         logger.warn({ mint: poolState.baseMint }, 'Skipping, owner can mint tokens!')
+    //         return
+    //     }
+    // }
+
+    // if (CHECK_IF_MINT_IS_MUTABLE) {
+    //     const mutable = await checkMutable(solanaConnection, poolState.baseMint)
+    //     if (mutable == true) {
+    //         logger.warn({ mint: poolState.baseMint }, 'Skipping, token is mutable!')
+    //         return
+    //     }
+    // }
+
+    // if (CHECK_IF_MINT_IS_BURNED) {
+    //     const burned = await checkBurn(solanaConnection, poolState.lpMint, 'confirmed')
+    //     if (burned !== true) {
+    //         logger.warn({ mint: poolState.baseMint }, 'Skipping, token is not burned!')
+    //         return
+    //     }
+    // }
+
+    if (running) saveNewPool(id.toString(), mint.toString())
+
+    if (autoBuy) buy(id, poolState)
+    else logger.warn('Buy disabled')
+
+    pools()
+}
+
+export async function checkMintable(vault: PublicKey): Promise<boolean | undefined> {
+    try {
+        let { data } = (await solanaConnection.getAccountInfo(vault)) || {}
+        if (!data) {
+            return
+        }
+        const deserialize = MintLayout.decode(data)
+        return deserialize.mintAuthorityOption === 0
+    } catch (e) {
+        logger.debug(e)
+        logger.error({ mint: vault }, `Failed to check if mint is renounced`)
+    }
+}
+
+// export async function processOpenBookMarket(updatedAccountInfo: KeyedAccountInfo) {
+//     let accountData: MarketStateV3 | undefined
+//     try {
+//         accountData = MARKET_STATE_LAYOUT_V3.decode(updatedAccountInfo.accountInfo.data)
+
+//         // to be competitive, we collect market data before buying the token...
+//         if (existingTokenAccounts.has(accountData.baseMint.toString())) {
+//             return
+//         }
+
+//         saveTokenAccount(accountData.baseMint, accountData)
+//     } catch (e) {
+//         logger.debug(e)
+//         logger.error({ mint: accountData?.baseMint }, `Failed to process market`)
+//     }
+// }
+
+export async function buy(accountId: PublicKey, accountData: LiquidityStateV4): Promise<void> {
+    processingToken = true
+    logger.info('start buying ')
+    buyStatus(accountId.toString(), 1, '')
+    try {
+        let tokenAccount = existingTokenAccounts.get(accountData.baseMint.toString())
+        if (!tokenAccount) {
+            // it's possible that we didn't have time to fetch open book data
+            const market = await getMinimalMarketV3(solanaConnection, accountData.marketId, 'confirmed')
+            tokenAccount = saveTokenAccount(accountData.baseMint, market)
+        }
+
+        tokenAccount.poolKeys = createPoolKeys(accountId, accountData, tokenAccount.market!)
+        const { innerTransaction } = Liquidity.makeSwapFixedInInstruction(
+            {
+                poolKeys: tokenAccount.poolKeys,
+                userKeys: {
+                    tokenAccountIn: quoteTokenAssociatedAddress,
+                    tokenAccountOut: tokenAccount.address,
+                    owner: wallet.publicKey,
+                },
+                amountIn: quoteAmount.raw,
+                minAmountOut: 0,
+            },
+            tokenAccount.poolKeys.version,
+        )
+
+        const latestBlockhash = await solanaConnection.getLatestBlockhash({
+            commitment: 'confirmed',
+        })
+
+        const instructions: TransactionInstruction[] = []
+        if (!jitoMode) instructions.push(
+            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: buygas }),
+            ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 })
+        )
+
+        if (!await solanaConnection.getAccountInfo(quoteTokenAssociatedAddress)) {
+            console.log('create')
+            instructions.push(
+                createAssociatedTokenAccountInstruction(
+                    wallet.publicKey,
+                    quoteTokenAssociatedAddress,
+                    wallet.publicKey,
+                    NATIVE_MINT,
+                )
+            )
+        }
+
+        instructions.push(
+            SystemProgram.transfer({
+                fromPubkey: wallet.publicKey,
+                toPubkey: quoteTokenAssociatedAddress,
+                lamports: Math.ceil(solAmount * 10 ** 9),
+            }),
+            // sync wrapped SOL balance
+            createSyncNativeInstruction(quoteTokenAssociatedAddress, TOKEN_PROGRAM_ID),
+            createAssociatedTokenAccountIdempotentInstruction(
+                wallet.publicKey,
+                tokenAccount.address,
+                wallet.publicKey,
+                accountData.baseMint,
+            ),
+            ...innerTransaction.instructions,
+            createCloseAccountInstruction(
+                quoteTokenAssociatedAddress,
+                wallet.publicKey,
+                wallet.publicKey
+            )
+        )
+
+        // simulation part
+        // const tx = new Transaction().add(...instructions)
+        // tx.feePayer = wallet.publicKey
+        // tx.recentBlockhash = (await solanaConnection.getLatestBlockhash()).blockhash
+        // console.log("simulation part")
+        // console.log(await solanaConnection.simulateTransaction(tx))
+
+        const messageV0 = new TransactionMessage({
+            payerKey: wallet.publicKey,
+            recentBlockhash: latestBlockhash.blockhash,
+            instructions,
+        }).compileToV0Message()
+
+        const transaction = new VersionedTransaction(messageV0)
+
+        transaction.sign([wallet, ...innerTransaction.signers])
+
+        if (jitoMode) {
+            const result = await bundle([transaction], wallet)
+            console.log('bundled')
+            if (result) buyStatus(accountId.toString(), 2, '')
+            else buyStatus(accountId.toString(), 3, '')
+        } else {
+            await execute(transaction, latestBlockhash)
+        }
+        while (true) {
+            const ata = await getAssociatedTokenAddress(accountData.baseMint, wallet.publicKey)
+            const info = await solanaConnection.getTokenAccountBalance(ata);
+            if (info.value.uiAmount && info.value.uiAmount > 0) {
+                buyStatus(accountId.toString(), 2, '')
+                await sell(accountId, accountData.baseMint, info.value.amount)
+                break
+            } else continue
+        }
+    } catch (e) {
+        logger.debug(e)
+        buyStatus(accountId.toString(), 3, '')
+        processingToken = false
+        logger.error({ mint: accountData.baseMint }, `Failed to buy token`)
+    }
+}
+
+export async function sell(accountId: PublicKey, mint: PublicKey, amount: BigNumberish, manual: boolean = false): Promise<void> {
+    let sold = false
+    let retries = 0
+    // inputAction(accountId, mint, amount)
+
+    if (autoSell && sellDelay > 0) {
+        logger.info({ info: "Delay timer activated" })
+        await new Promise((resolve) => setTimeout(resolve, sellDelay))
+        logger.info({ info: "Delay timer ended" })
+    }
+    // do {
+    try {
+        const tokenAccount = existingTokenAccounts.get(mint.toString())
+
+        if (!tokenAccount) {
+            return
+        }
+
+        if (!tokenAccount.poolKeys) {
+            logger.warn({ mint }, 'No pool keys found')
+            return
+        }
+
+        if (amount === 0) {
+            logger.info(
+                {
+                    mint: tokenAccount.mint,
+                },
+                `Empty balance, can't sell`,
+            )
+            return
+        }
+
+        const tokenIn = new Token(TOKEN_PROGRAM_ID, mint, tokenAccount.poolKeys.baseDecimals);
+        const tokenAmountIn = new TokenAmount(tokenIn, amount, true);
+        // const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, market);
+
+        if (autoSell) await priceMatch(tokenAmountIn, tokenAccount.poolKeys)
+
+        sellStatus(accountId.toString(), 1, '')
+        console.log('inner instructions')
+        const { innerTransaction } = Liquidity.makeSwapFixedInInstruction(
+            {
+                poolKeys: tokenAccount.poolKeys!,
+                userKeys: {
+                    tokenAccountOut: quoteTokenAssociatedAddress,
+                    tokenAccountIn: tokenAccount.address,
+                    owner: wallet.publicKey,
+                },
+                amountIn: amount,
+                minAmountOut: 0,
+            },
+            tokenAccount.poolKeys!.version,
+        )
+
+        const latestBlockhash = await solanaConnection.getLatestBlockhash({
+            commitment: 'confirmed',
+        })
+
+        const instructions: TransactionInstruction[] = []
+        if (!jitoMode) instructions.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: sellgas }),
+            ComputeBudgetProgram.setComputeUnitLimit({ units: 4000000 }))
+
+        instructions.push(...innerTransaction.instructions)
+
+        const messageV0 = new TransactionMessage({
+            payerKey: wallet.publicKey,
+            recentBlockhash: latestBlockhash.blockhash,
+            instructions
+        }).compileToV0Message()
+
+        console.log('transaction')
+
+        const transaction = new VersionedTransaction(messageV0)
+        transaction.sign([wallet, ...innerTransaction.signers])
+        const res = await bundle([transaction], wallet)
+        if (res) sellStatus(accountId.toString(), 2, '')
+        else sellStatus(accountId.toString(), 3, '')
+        return
+
+        // if (!jitoMode) {
+        //     const tokenBalance = (await solanaConnection.getTokenAccountBalance(tokenAccount.address)).value.uiAmount
+        //     if (!tokenBalance || tokenBalance == 0) {
+        //         sellStatus(accountId.toString(), 2, '')
+        //         processingToken = false
+        //         sold = true
+        //         return
+        //     } else {
+        //         sellStatus(accountId.toString(), 3, '')
+        //         processingToken = false
+        //         return
+        //     }
+        // }
+    } catch (e: any) {
+        // wait for a bit before retrying
+        retries++
+        logger.error(e)
+        logger.error({ mint }, `Failed to sell token, retry: ${retries}/${MAX_SELL_RETRIES}`)
+        sellStatus(accountId.toString(), 3, '')
+    }
+    // } while (!sold && retries < MAX_SELL_RETRIES)
+    processingToken = false
+}
+
+function shouldBuy(key: string): boolean {
+    logger.info(`-------------------------------------- `)
+    logger.info(`Processing token: ${processingToken}`)
+    return !onceBuy ? !processingToken : true
+}
+
+export const runListener = async (io?: Server) => {
+    await init()
+    const runTimestamp = Math.floor(new Date().getTime() / 1000)
+
+    logger.info('Raydium tracking started')
+    const raydiumLogId = solanaConnection.onLogs(
+        Raydium,
+        async (x) => {
+            try {
+                if (processingToken) return
+                const log = x.logs;
+                const signature = x.signature;
+                const error = x.err;
+                const ray_log_row = lo.find(log, (y) => y.includes("ray_log"));
+
+                if (!error && ray_log_row) {
+                    try {
+                        const match = ray_log_row.match(/ray_log: (.*)/)
+                        if (match?.length) {
+                            const ray_data = Buffer.from(
+                                match[1],
+                                "base64"
+                            );
+                            const log_type = LOG_TYPE.decode(ray_data).log_type;
+                            if (log_type == RAY_IX_TYPE.CREATE_POOL) {
+                                const tx = await solanaConnection.getParsedTransaction(signature, {
+                                    maxSupportedTransactionVersion: 0,
+                                    commitment: 'confirmed'
+                                });
+                                console.log('confirmed', new Date(), signature)
+                                if (tx) {
+                                    const instructions = tx.transaction.message.instructions;
+                                    const raydiumInstruction = instructions.find((instruction) => { return instruction.programId.toString() == "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8" });
+                                    if (raydiumInstruction) {
+                                        if ('accounts' in raydiumInstruction) {
+                                            const mintB = raydiumInstruction.accounts[9];
+                                            if (mintB.toBuffer().length != WSOL.toBuffer().length) return
+                                            poolId = raydiumInstruction.accounts[4];
+                                            mint = raydiumInstruction.accounts[8];
+
+                                            const poolInfo = await solanaConnection.getAccountInfo(poolId, "confirmed")
+                                            if (poolInfo?.data) {
+                                                const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(poolInfo?.data);
+                                                const vaultSize = await solanaConnection.getBalance(poolState.quoteVault)
+                                                const poolSize = new TokenAmount(quoteToken, vaultSize, true)
+                                                logger.info(`poolSize ${vaultSize / LAMPORTS_PER_SOL}`)
+                                                processRaydiumPool(poolId, poolState, poolSize, mint)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (ex) {
+                        console.error(ex);
+                    }
+                }
+            } catch (ex) {
+                console.error(ex);
+            }
+        },
+        "confirmed"
+    );
+
+    const accountLogSubscirptionId = solanaConnection.onLogs(
+        wallet.publicKey,
+        async (x) => {
+            try {
+                if (!processingToken) return
+                const log = x.logs;
+                const signature = x.signature;
+                console.log('wallet tx', signature)
+                const error = x.err;
+                const ray_log_row = lo.find(log, (y) => y.includes("ray_log"));
+
+                if (!error && ray_log_row) {
+                    try {
+                        const match = ray_log_row.match(/ray_log: (.*)/)
+                        if (match?.length) {
+                            console.log('raydium tx', signature)
+                            const ray_data = Buffer.from(
+                                match[1],
+                                "base64"
+                            );
+                            const log_type = LOG_TYPE.decode(ray_data).log_type;
+                            if (log_type == RAY_IX_TYPE.SWAP) {
+                                console.log('raydium swap tx', signature)
+                                let tx: ParsedTransactionWithMeta | null = null
+                                while (tx == null) tx = await solanaConnection.getParsedTransaction(signature, {
+                                    maxSupportedTransactionVersion: 0,
+                                    commitment: 'confirmed'
+                                });
+                                console.log('tx', signature)
+                                const inx = tx?.transaction.message.instructions
+                                const raydiumInstruction = inx.find((instruction) => { return instruction.programId.toString() == "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8" });
+                                if (raydiumInstruction) {
+                                    if ('accounts' in raydiumInstruction) {
+                                        buyStatus(poolId.toString(), 2, '')
+                                        console.log('inx')
+                                        if (inx) {
+                                            try {
+                                                // @ts-ignore
+                                                const ata = getAssociatedTokenAddressSync(mint, wallet.publicKey)
+                                                console.log('ata', ata)
+                                                const bal = (await solanaConnection.getTokenAccountBalance(ata)).value.amount
+                                                console.log("sell")
+                                                // sell(poolId, mint, bal)
+                                            } catch (e) {
+
+                                            }
+                                        }
+                                    }
+                                }
+                            } else return
+                        } else return
+                    } catch (ex) {
+                        console.error(ex);
+                    }
+                }
+            } catch (ex) {
+                console.error(ex);
+            }
+        },
+        'confirmed'
+    )
+
+    logger.info(`Listening for wallet changes: ${accountLogSubscirptionId}`)
+    logger.info(`Listening for raydium changes: ${raydiumLogId}`)
+    logger.info('----------------------------------------')
+    logger.info('Bot is running! Press CTRL + C to stop it.')
+    logger.info('----------------------------------------')
+}
+
+export const unwrapSol = async (quoteMintAddress: PublicKey) => {
+    try {
+        const wsolAccount = await solanaConnection.getAccountInfo(quoteMintAddress)
+        if (wsolAccount) {
+            const instructions = []
+
+            instructions.push(
+                ComputeBudgetProgram.setComputeUnitPrice({ microLamports: (buygas + sellgas) / 2 }),
+                ComputeBudgetProgram.setComputeUnitLimit({ units: 2000000 })
+            )
+
+            instructions.push(
+                createCloseAccountInstruction(
+                    quoteMintAddress,
+                    wallet.publicKey,
+                    wallet.publicKey
+                )
+            )
+            const latestBlockhash = await solanaConnection.getLatestBlockhash({
+                commitment: 'confirmed',
+            })
+
+
+            const messageV0 = new TransactionMessage({
+                payerKey: wallet.publicKey,
+                recentBlockhash: latestBlockhash.blockhash,
+                instructions: [...instructions],
+            }).compileToV0Message()
+
+            const transaction = new VersionedTransaction(messageV0)
+            transaction.sign([wallet])
+            await execute(transaction, latestBlockhash)
+        }
+    } catch (error) {
+        logger.warn("Error unwrapping WSOL")
+    }
+}
+
+const priceMatch = async (amountIn: TokenAmount, poolKeys: LiquidityPoolKeysV4) => {
+    if (PRICE_CHECK_DURATION === 0 || PRICE_CHECK_INTERVAL === 0) {
+        return
+    }
+    let priceMatchAtOne = false
+    const timesToCheck = PRICE_CHECK_DURATION / PRICE_CHECK_INTERVAL
+    const profitFraction1 = quoteAmount.mul(profit).numerator.div(new BN(100))
+    // const profitFraction2 = quoteAmount.mul(TAKE_PROFIT2).numerator.div(new BN(100))
+    const profitAmount1 = new TokenAmount(quoteToken, profitFraction1, true)
+    // const profitAmount2 = new TokenAmount(quoteToken, profitFraction2, true)
+    const takeProfit1 = quoteAmount.add(profitAmount1)
+    // const takeProfit2 = quoteAmount.add(profitAmount2)
+
+    const lossFraction = quoteAmount.mul(stop).numerator.div(new BN(100))
+    const lossAmount = new TokenAmount(quoteToken, lossFraction, true)
+    const stopLoss = quoteAmount.subtract(lossAmount)
+    const slippage = new Percent(SELL_SLIPPAGE, 100)
+    let timesChecked = 0
+
+    do {
+        try {
+            const poolInfo = await Liquidity.fetchInfo({
+                connection: solanaConnection,
+                poolKeys,
+            })
+
+            const amountOut = Liquidity.computeAmountOut({
+                poolKeys,
+                poolInfo,
+                amountIn: amountIn,
+                currencyOut: quoteToken,
+                slippage,
+            }).amountOut
+
+            logger.debug(
+                { mint: poolKeys.baseMint.toString() },
+                `Take profit1: ${takeProfit1.toFixed()} | Stop loss: ${stopLoss.toFixed()} | Current: ${amountOut.toFixed()}`,
+            )
+
+            if (amountOut.lt(stopLoss)) {
+                logger.info({ stopLoss: "Token is on stop loss point, will sell with loss" })
+                break
+            }
+
+            if (amountOut.gt(takeProfit1)) {
+                if (!priceMatchAtOne) {
+                    logger.info({ takeProfit: "Token is on first level profit, will wait for second level higher profit" })
+                    priceMatchAtOne = true
+                    break
+                }
+            }
+
+            if (amountOut.lt(takeProfit1) && priceMatchAtOne) {
+                logger.info({ stopLoss: "Token is on first level profit again, will sell with first level" })
+                break
+            }
+
+            // if (amountOut.gt(takeProfit2)) {
+            //     logger.info({ stopLoss: "Token is on second level profit, will sell with second level profit" })
+            //     break
+            // }
+
+            await new Promise((resolve) => setTimeout(resolve, PRICE_CHECK_INTERVAL))
+        } catch (e) {
+            logger.trace({ mint: poolKeys.baseMint.toString(), e }, `Failed to check token price`)
+        } finally {
+            timesChecked++
+        }
+    } while (true)
+    // } while (timesChecked < timesToCheck)
+}
+
+export const watcher = fs.watch('data.json', async () => {
+    logger.info('data changed')
+    await init()
+})

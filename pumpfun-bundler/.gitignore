@@ -1,0 +1,6 @@
+node_modules/
+dist/
+src/image/
+.env
+data*.json
+test.json
