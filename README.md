@@ -1,8 +1,8 @@
-# 🚀 Solana Trading Bot Suite by HyperBuildX
+# 🚀 Solana Trading Bot 
 
-Welcome to the ultimate Solana-based trading automation suite — a high-performance collection of bots engineered for rapid execution, intelligent volume control, and deep integration with **Raydium**, **PumpFun**, **Meteora**, and more.
+Welcome to the premier Solana-based trading automation suite — a high-performance toolkit designed for precision execution, intelligent volume management, and seamless integration with top platforms like Raydium, PumpFun, Meteora, and more.
 
-Whether you're sniping launches, bundling buys, mimicking whale trades, or creating volume — this toolkit is made for serious on-chain operators.
+Whether you're sniping new token launches, executing bundled trades, mirroring whale activity, or driving strategic volume, this suite is built for serious on-chain professionals.
 
 ---
 
@@ -34,65 +34,4 @@ Whether you're sniping launches, bundling buys, mimicking whale trades, or creat
 
 ---
 
-## 🚀 Getting Started
 
-### Step 1: Clone the repo
-
-```bash
-git clone https://github.com/HyperBuildX/Solana-Memecoin-Trading-Bot-Package
-cd Solana-Memecoin-Trading-Bot-Package
-````
-
-### Step 2: Choose a bot and install dependencies
-
-For example:
-```bash
-cd raydium-sniper-bot
-npm install
-```
-
-### Step 3: Set up environment variables
-
-Edit .env with your private keys, RPC, target pools, etc.
-```bash
-cp .env.example .env
-```
-
-### Step 4: Run the bot
-
-```bash
-npm run dev
-```
-
-### Step 5: Monitor
-
-Outputs are logged to terminal, with optional Telegram or Discord webhook support.
-
----
-
-## 📓 Documentation
-
-Each bot includes:
-
-- `.env.example` for configuration setup
-- Step-by-step usage guide in `README.md`
-- Comments in code for clarity
-- RPC provider tips and optimization strategies
-
----
-
-## 🔐 Security Notice
-
-These bots interact with live wallets and real tokens:
-
-- Always test on dev wallets first
-- Secure your private keys and .env files
-- Use rate limits and fail-safes when operating with real assets
-
----
-
-## 💬 Support & Contact
-
-For questions, feature requests, or private bot development:
-- **E-Mail**: [hyperbuildx@adamglab.dev](mailto:hyperbuildx@adamglab.dev)  
-- **Telegram**: [@bettyjk_0915](https://t.me/bettyjk_0915)
